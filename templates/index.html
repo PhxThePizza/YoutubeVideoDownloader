@@ -116,30 +116,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        .file-info {
-            flex-grow: 1;
-        }
-        .file-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .delete-btn {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .delete-btn:hover {
-            background-color: #c82333;
-        }
-        .delete-btn:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
     </style>
 </head>
 <body>
@@ -320,51 +296,12 @@
                 if (files.length === 0) {
                     downloadsList.innerHTML = '<p>No downloads yet.</p>';
                 } else {
-                    // Clear the container
-                    downloadsList.innerHTML = '';
-                    
-                    // Create download items securely using DOM manipulation
-                    files.forEach(file => {
-                        // Create main container
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'download-item';
-                        
-                        // Create file info section
-                        const fileInfoDiv = document.createElement('div');
-                        fileInfoDiv.className = 'file-info';
-                        const fileInfoSpan = document.createElement('span');
-                        // Use textContent to prevent XSS
-                        fileInfoSpan.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                        fileInfoDiv.appendChild(fileInfoSpan);
-                        
-                        // Create actions section
-                        const actionsDiv = document.createElement('div');
-                        actionsDiv.className = 'file-actions';
-                        
-                        // Create download link
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = file.url;
-                        downloadLink.className = 'download-link';
-                        downloadLink.textContent = 'Download';
-                        
-                        // Create delete button with data attribute (no onclick)
-                        const deleteBtn = document.createElement('button');
-                        deleteBtn.className = 'delete-btn';
-                        deleteBtn.textContent = 'Delete';
-                        deleteBtn.setAttribute('data-filename', file.name);
-                        
-                        // Add secure event listener
-                        deleteBtn.addEventListener('click', function(e) {
-                            deleteFile(file.name, e.target);
-                        });
-                        
-                        // Assemble the structure
-                        actionsDiv.appendChild(downloadLink);
-                        actionsDiv.appendChild(deleteBtn);
-                        itemDiv.appendChild(fileInfoDiv);
-                        itemDiv.appendChild(actionsDiv);
-                        downloadsList.appendChild(itemDiv);
-                    });
+                    downloadsList.innerHTML = files.map(file => `
+                        <div class="download-item">
+                            <span>${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                            <a href="${file.url}" class="download-link">Download</a>
+                        </div>
+                    `).join('');
                 }
             })
             .catch(error => {
@@ -372,84 +309,6 @@
             });
         }
 
-        function deleteFile(filename, deleteBtn) {
-            // Use textContent for safe display of filename in confirmation
-            const confirmDiv = document.createElement('div');
-            confirmDiv.textContent = `Are you sure you want to delete "${filename}"?`;
-            
-            if (confirm(confirmDiv.textContent)) {
-                const originalText = deleteBtn.textContent;
-                
-                // Show loading state
-                deleteBtn.disabled = true;
-                deleteBtn.textContent = 'Deleting...';
-                
-                fetch(`/delete_file/${encodeURIComponent(filename)}`, {
-                    method: 'DELETE'
-                })
-                .then(response => {
-                    // Handle different HTTP status codes properly
-                    if (response.status === 204) {
-                        // Successful deletion (204 No Content)
-                        showInPageMessage(`File "${filename}" deleted successfully`, 'success');
-                        loadDownloads();
-                        return;
-                    } else if (response.status === 404) {
-                        throw new Error('File not found');
-                    } else if (response.status === 400) {
-                        return response.json().then(data => {
-                            throw new Error(data.message || 'Invalid request');
-                        });
-                    } else if (response.status === 403) {
-                        throw new Error('Permission denied');
-                    } else if (response.status >= 500) {
-                        throw new Error('Server error');
-                    } else {
-                        // For responses with JSON body
-                        return response.json();
-                    }
-                })
-                .then(data => {
-                    if (data && data.success) {
-                        showInPageMessage(data.message, 'success');
-                        loadDownloads();
-                    } else if (data && !data.success) {
-                        showInPageMessage(`Error: ${data.message}`, 'error');
-                        // Reset button state
-                        deleteBtn.disabled = false;
-                        deleteBtn.textContent = originalText;
-                    }
-                })
-                .catch(error => {
-                    showInPageMessage(`Error deleting file: ${error.message}`, 'error');
-                    // Reset button state
-                    deleteBtn.disabled = false;
-                    deleteBtn.textContent = originalText;
-                });
-            }
-        }
-
-        // Helper function for secure in-page messaging
-        function showInPageMessage(message, type) {
-            const messageDiv = document.getElementById('message');
-            const msgElement = document.createElement('div');
-            msgElement.className = `message ${type}`;
-            msgElement.textContent = message;
-            
-            // Clear any existing messages and add new one
-            messageDiv.innerHTML = '';
-            messageDiv.appendChild(msgElement);
-            
-            // Clear success messages after 3 seconds
-            if (type === 'success') {
-                setTimeout(() => {
-                    if (messageDiv.contains(msgElement)) {
-                        messageDiv.removeChild(msgElement);
-                    }
-                }, 3000);
-            }
-        }
-        
         // Load downloads on page load
         loadDownloads();
     </script>
