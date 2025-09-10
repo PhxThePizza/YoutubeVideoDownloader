@@ -125,6 +125,69 @@ def download_file(filename):
         flash('File not found')
         return redirect(url_for('index'))
 
+@app.route('/delete_file/<filename>', methods=['DELETE'])
+def delete_file(filename):
+    """Delete a downloaded file from storage"""
+    try:
+        # Strong path validation to prevent directory traversal attacks
+        if not filename or not filename.strip():
+            return jsonify({
+                'success': False,
+                'message': 'Invalid filename'
+            }), 400
+            
+        # Reject filenames with path separators or suspicious characters
+        if '/' in filename or '\\' in filename or '..' in filename or filename.startswith('.'):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid filename - contains forbidden characters'
+            }), 400
+            
+        # Ensure the absolute path stays within downloads directory
+        file_path = os.path.join(DOWNLOADS_DIR, filename)
+        downloads_abs_path = os.path.abspath(DOWNLOADS_DIR)
+        file_abs_path = os.path.abspath(file_path)
+        
+        # Check if the resolved path is actually within the downloads directory
+        if not file_abs_path.startswith(downloads_abs_path + os.sep) and file_abs_path != downloads_abs_path:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid file path'
+            }), 400
+            
+        # Check if file exists and is actually a file (not a directory)
+        if not os.path.exists(file_path):
+            return jsonify({
+                'success': False,
+                'message': 'File not found'
+            }), 404
+            
+        if not os.path.isfile(file_path):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid file type'
+            }), 400
+            
+        # Delete the file
+        os.remove(file_path)
+        return '', 204  # 204 No Content for successful deletion
+        
+    except PermissionError:
+        return jsonify({
+            'success': False,
+            'message': 'Permission denied - cannot delete file'
+        }), 403
+    except OSError as e:
+        return jsonify({
+            'success': False,
+            'message': f'File system error: {str(e)}'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error'
+        }), 500
+
 @app.route('/list_downloads')
 def list_downloads():
     """List all downloaded files"""
